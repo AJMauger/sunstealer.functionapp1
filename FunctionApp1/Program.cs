@@ -45,7 +45,9 @@ var host = new HostBuilder()
                     .ConfigureKeyVault(kv =>
                     {
                         kv.SetCredential(new DefaultAzureCredential());
-                    }).Select(KeyFilter.Any, "NonSecret").Select(KeyFilter.Any, "Secret");
+                    })
+                    .Select("Sunstealer:*", "Sunstealer")
+                    .ConfigureRefresh(refreshOptions => refreshOptions.Register("Sunstealer:Sentinel", refreshAll: true));
                 });
             }
         }
