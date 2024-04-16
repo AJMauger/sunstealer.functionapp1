@@ -69,6 +69,88 @@ public class Functions
         }
     }
 
+        [Function("ImportView1")]
+    [OpenApiOperation(operationId: "ImportView1", Description = "ImportView1")]
+    public IActionResult ImportView1([HttpTrigger(AuthorizationLevel.Anonymous, "get")] HttpRequest req)
+    {
+        try
+        {
+            Logger.Instance.LogInformation($"Functions.ImportView1().", string.Empty);
+
+            using (var db = this._dbContextFactory.CreateDbContext())
+            {
+                var view = "View2";
+                var sql = $"drop TABLE [dbo].[{view}];";
+                try
+                {
+                    db.Database.ExecuteSql(FormattableStringFactory.Create(sql));
+                } 
+                catch(Exception) { }
+
+                System.IO.FileInfo fi = new($"{view}.txt");
+                System.IO.StreamReader sr = fi.OpenText();
+                string? header = sr.ReadLine();
+                if (!string.IsNullOrWhiteSpace(header))
+                {
+                    sql = $"CREATE TABLE[dbo].[{view}] (";
+                    var fields = header.Split(" ", StringSplitOptions.TrimEntries);
+                    foreach(var field in fields) {
+                        if (!string.IsNullOrWhiteSpace(field))
+                        {
+                            sql += $"[{field}] NVARCHAR(50) NOT NULL,";
+                        }
+                    }
+                    sql = sql[..^1];
+                    sql += ");";
+                    Logger.Instance.LogInformation($"Functions.ImportView1().", $"sql: {sql}");
+                    db.Database.ExecuteSql(FormattableStringFactory.Create(sql));
+
+                    sr.ReadLine();
+
+                    string? line = string.Empty;
+                    while((line = sr.ReadLine()) != null)
+                    {
+                        line= line.Trim();
+                        if (string.IsNullOrEmpty(line))
+                        {
+                            break;
+                        }
+                        sql = $"INSERT INTO database1..{view} (";
+                        foreach (var field in fields)
+                        {
+                            if (!string.IsNullOrWhiteSpace(field))
+                            {
+                                sql += $"[{field}],";
+                            }
+                        }
+                        sql = sql[..^1];
+
+                        sql += ") VALUES (";
+                        var values = line.Split(" ", StringSplitOptions.TrimEntries);
+                        foreach (var value in values)
+                        {
+                            if (!string.IsNullOrWhiteSpace(value))
+                            {
+                                sql += $"'{value}',";
+                            }
+                        }
+                        sql = sql[..^1];
+                        sql += ")";
+                        Logger.Instance.LogInformation($"Functions.ImportView1().", $"sql: {sql}");
+                        db.Database.ExecuteSql(FormattableStringFactory.Create(sql));
+                    }
+                    sr.Close();
+                }
+            }
+            return new OkObjectResult($"OK.");
+        }
+        catch (Exception e)
+        {
+            Logger.Instance.LogException(e, "Function1.InstallCertificate()", string.Empty);
+            return new InternalServerErrorResult();
+        }
+    }
+    
     [Function("InstallCertificateMy")]
     [OpenApiOperation(operationId: "InstallCertificateMy", Description = "InstallCertificateMy")]
     [OpenApiResponseWithBody(statusCode: HttpStatusCode.OK, contentType: "application/json", bodyType: typeof(string), Description = "Description.Response", Example = typeof(string))]
