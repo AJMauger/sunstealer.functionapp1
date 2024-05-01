@@ -39,7 +39,8 @@ var host = new HostBuilder()
             {
                 builder.AddAzureAppConfiguration(options =>
                 {
-                    var connectionString = Environment.GetEnvironmentVariable("AppConfig", EnvironmentVariableTarget.Process);
+                    // ajm: CUSTOMCONNSTR_ not ConnectionStrings: O_o
+                    var connectionString = Environment.GetEnvironmentVariable("CUSTOMCONNSTR_AppConfig", EnvironmentVariableTarget.Process);
                     Logger.Instance.LogInformation("ConfigureAppConfiguration().AddAzureAppConfiguration()", $"AppConfig ConnectionString: {connectionString}");
                     options.Connect(new Uri(connectionString), new ManagedIdentityCredential())
                     .ConfigureKeyVault(kv =>
