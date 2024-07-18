@@ -6,7 +6,24 @@ terraform {
   }
 }
 
-resource "azurerm_app_configuration" "app_config" {
+data "azurerm_key_vault" "kv" {
+  name                       = "key-vault-name"
+  resource_group_name        = azurerm_resource_group.rg.name
+}
+
+data "azurerm_key_vault_secret" "kvs" {
+  name         = "kvs"
+  key_vault_id = data.azurerm_key_vault.kv.id
+}
+
+data "azurerm_client_config" "current" {}
+
+resource "azurerm_resource_group" "rg" {
+  name = "resource-group-name"
+  location = "US-West"
+}
+
+resource "azurerm_app_configuration" "acs" {
   name                = "app-config-name"
   location            = "East US"
   resource_group_name = azurerm_resource_group.rg.name
@@ -16,25 +33,19 @@ resource "azurerm_app_configuration" "app_config" {
   }
 }
 
-resource "azurerm_key_vault" "vault" {
-  name                       = "key-vault-name"
-  location                   = "East US"
-  resource_group_name        = azurerm_resource_group.rg.name
-  sku_name                   = "standard"
-  tenant_id                  = data.azurerm_client_config.current.tenant_id
-}
-
-data "azurerm_client_config" "current" {}
-
 resource "azurerm_role_assignment" "akv_sp" {
-  scope                = azurerm_key_vault.vault.id
-  principal_id         = azurerm_app_configuration.app_config.identity
+  scope                = data.azurerm_key_vault.kv.id
+  principal_id         = azurerm_app_configuration.acs.identity
   role_definition_name = "Key Vault Secrets Officer"
 }
 
-resource "azurerm_app_configuration_kv" "my_key" {
-  name         = "my-secret-key"
-  value        = "{\"uri\": \"https://key-vault-name.vault.azure.net/secrets/my-secret\"}"
+resource "azurerm_app_configuration_key" "acs_key" {
+  configuration_store_id = azurerm_app_configuration.acs.id
   content_type = "application/vnd.microsoft.appconfig.keyvaultref+json;charset=utf-8"
-  config_store_id = azurerm_app_configuration.app_config.id
+  key          = "secret-key"
+  type         = "vault"
+  # value      = "{\"uri\": \"https://key-vault-name.vault.azure.net/secrets/secret-key\"}"
+
+  vault_key_reference    = data.azurerm_key_vault_secret.kvs.id
 }
+ 
