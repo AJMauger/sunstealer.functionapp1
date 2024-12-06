@@ -1,4 +1,4 @@
-|                  |                                     |                        |               |    
+| ObjectType       | RoleDefinitionName                  | DisplayName            | Scope         |    
 | ---------------- | ----------------------------------- | ---------------------- | ------------- |    
 | ServicePrincipal | Key Vault Administrator             | sunstealeracs          | sunstealerkv  |
 | ServicePrincipal | Key Vault Administrator             | SunstealerFunctionApp1 | sunstealerkv  |
