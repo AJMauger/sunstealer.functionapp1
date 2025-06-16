@@ -1,6 +1,6 @@
 ﻿using Microsoft.EntityFrameworkCore;
 
-namespace FunctionApp1;
+namespace Sunstealer.FunctionApp1;
 
 public class ApplicationDbContext : DbContext
 {

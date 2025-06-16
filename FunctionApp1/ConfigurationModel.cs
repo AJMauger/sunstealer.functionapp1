@@ -1,4 +1,4 @@
-﻿namespace FunctionApp1.Models;
+﻿namespace Sunstealer.FunctionApp1.Models;
 
 public class ConfigurationModel
 {

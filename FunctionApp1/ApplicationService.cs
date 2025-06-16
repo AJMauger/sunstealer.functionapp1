@@ -2,9 +2,9 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using FunctionApp1.Models;
+using Sunstealer.FunctionApp1.Models;
 
-namespace FunctionApp1;
+namespace Sunstealer.FunctionApp1;
 
 public interface IApplicationService
 {
@@ -15,6 +15,8 @@ public class ApplicationService: IApplicationService, IHostedService
 {
     private readonly IConfiguration confliguration;
     private readonly ILogger<Functions> logger;
+
+    public static LogLevel _logLevel = LogLevel.Trace;
 
     public ConfigurationModel Configuration { get; set; } = new ConfigurationModel();
 

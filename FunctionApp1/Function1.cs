@@ -1,45 +1,177 @@
-using Asp.Versioning;
-using Azure.Core;
-using Azure.Data.AppConfiguration;
 using Azure.Identity;
 using Azure.Security.KeyVault.Secrets;
+using Microsoft.ApplicationInsights.DataContracts;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Azure.Functions.Worker.Http;
 using Microsoft.Azure.WebJobs.Extensions.OpenApi.Core.Attributes;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Microsoft.OpenApi.Models;
+using System.Configuration;
 using System.Net;
 using System.Runtime.CompilerServices;
 using System.Security.Cryptography.X509Certificates;
 using System.Web.Http;
 
-namespace FunctionApp1;
+namespace Sunstealer.FunctionApp1;
 
 public class Functions
 {
-    private readonly IApplicationService _application;
-    private readonly IConfiguration _configuration;
-    private readonly IDbContextFactory<ApplicationDbContext> _dbContextFactory;
-    private readonly ILogger _logger;
+    private readonly IApplicationService? _application;
+    private readonly IConfiguration? _configuration;
+    private readonly IDbContextFactory<ApplicationDbContext>? _dbContextFactory;
+    private readonly ILoggerService? _logger;
+    private readonly ITelemetryService? _telemetryService;
 
-    public Functions(IApplicationService application, IConfiguration configuration, IDbContextFactory<ApplicationDbContext> dbContextFactory, ILoggerFactory loggerFactory)
+    public Functions(IApplicationService application, IConfiguration configuration, IDbContextFactory<ApplicationDbContext> dbContextFactory, 
+        ILoggerFactory loggerFactory, ILoggerService loggerService, ITelemetryService telemetryService)
     {
         try
         {
-            _application = application;
-            _configuration = configuration;
-            _dbContextFactory = dbContextFactory;
-            _logger = loggerFactory.CreateLogger<Functions>();
+            _application = application ?? throw new Exception("application");
+            _configuration = configuration ?? throw new Exception("configuration");
+            _dbContextFactory = dbContextFactory ?? throw new Exception("dbContextFactory");
+            // _logger = loggerFactory?.CreateLogger<ILoggerService>();
+            _logger = loggerService;
+            _telemetryService = telemetryService;
 
             Logger.Instance.LogInformation($"Functions.Functions() _configuration: {_configuration}.", string.Empty);
+
+            _logger.LogDebug("ILogger Debug Test.");
+            _logger.LogInformation("ILogger Information Test.");
+            _logger.LogWarning("ILogger Warning Test.");
+            _logger.LogError("ILogger Error Test.");
+            _logger.LogError(new Exception("AdamException"), "ILogger Exception Test.");
         }
-        catch(Exception e)
+        catch (Exception e)
         {
             _logger?.LogError(e, $"Function.Function().");
+        }
+    }
+
+    [Function("AlwaysEncrypted")]
+    [OpenApiOperation(operationId: "AlwaysEncrypted", Description = "AlwaysEncrypted")]
+    [OpenApiResponseWithBody(statusCode: HttpStatusCode.OK, contentType: "application/json", bodyType: typeof(string), Description = "Description.Response", Example = typeof(string))]
+    public IActionResult AlwaysEncrypted([HttpTrigger(AuthorizationLevel.Anonymous, "get")] HttpRequest req)
+    {
+        try
+        {
+            Logger.Instance.LogInformation($"Functions.AlwaysEncrypted().", string.Empty);
+
+            List<Table1> data = new List<Table1>();
+            using (var db = _dbContextFactory?.CreateDbContext())
+            {
+                var now = DateTime.Now;
+                if (db != null)
+                {
+                    string encrypted01 = "Encrypted";
+                    data = db.table1.Where(f => f.Encrypted1 == encrypted01).ToList();
+                    data.ForEach(f =>
+                    {
+                        Console.WriteLine($"UUID: {f.UUID}, Encrypted1: {f.Encrypted1}, Date1: {f.Date1}, Number1: {f.Number1}, Text1: {f.Text1}"); 
+                    });
+                }
+                Logger.Instance.LogInformation($"Duration: {DateTime.Now - now}", string.Empty);
+            }
+            return new OkObjectResult(data);
+        }
+        catch (Exception e)
+        {
+            Logger.Instance.LogException(e, "Function1.EntityFrameworkLinq()", string.Empty);
+            return new InternalServerErrorResult(); ;
+        }
+    }
+
+    [Function("EntityFrameworkLinq")]
+    [OpenApiOperation(operationId: "EntityFrameworkLinq", Description = "EntityFrameworkLinq")]
+    [OpenApiResponseWithBody(statusCode: HttpStatusCode.OK, contentType: "application/json", bodyType: typeof(string), Description = "Description.Response", Example = typeof(string))]
+    public IActionResult EntityFrameworkLinq([HttpTrigger(AuthorizationLevel.Anonymous, "get")] HttpRequest req)
+    {
+        try
+        {
+            Logger.Instance.LogInformation($"Functions.EntityFrameworkLinq().", string.Empty);
+
+            List<Table1> data = new List<Table1>();
+            using (var db = _dbContextFactory?.CreateDbContext())
+            {
+                var now = DateTime.Now;
+                if (db != null)
+                {
+                    data = db.table1.Where(f => f.UUID > 0).ToList();
+                    data.ForEach(f => f.Number1++);
+                    db.SaveChanges();
+                }
+                Logger.Instance.LogInformation($"Duration: {DateTime.Now - now}", string.Empty);
+            }
+            return new OkObjectResult(data);
+        }
+        catch (Exception e)
+        {
+            Logger.Instance.LogException(e, "Function1.EntityFrameworkLinq()", string.Empty);
+            return new InternalServerErrorResult(); ;
+        }
+    }
+
+    [Function("GetConfiguration")]
+    [OpenApiOperation(operationId: "GetConfiguration", Description = "GetConfiguration")]
+    [OpenApiResponseWithBody(statusCode: HttpStatusCode.OK, contentType: "application/json", bodyType: typeof(string), Description = "Description.Response", Example = typeof(string))]
+    public IActionResult GetConfiguration([HttpTrigger(AuthorizationLevel.Anonymous, "get")] HttpRequest req)
+    {
+        try
+        {
+            Logger.Instance.LogInformation($"Functions.GetConfiguration().", string.Empty);
+
+            var list = this._configuration?.AsEnumerable();
+            foreach (var i in list ?? [])
+            {
+                Logger.Instance.LogInformation("Function1.GetConfiguration()", $"{i.Key} = {i.Value}.");
+            }
+
+            var data = new Dictionary<string, string>();
+            try
+            {
+                data.Add("key1", this._configuration?.GetValue<string>("Sunstealer::key1") ?? string.Empty);
+            }
+            catch (Exception e)
+            {
+                Logger.Instance.LogException(e, "Function1.GetConfiguration()", "key1");
+            }
+
+            try
+            {
+                data.Add("secret1", this._configuration?.GetValue<string>("Sunstealer::secret1") ?? string.Empty);
+            }
+            catch (Exception e)
+            {
+                Logger.Instance.LogException(e, "Function1.GetConfiguration()", "scret1");
+            }
+
+            try
+            {
+                data.Add("key1", this._configuration?.GetValue<string>("Sunstealer::sentinel") ?? string.Empty);
+            }
+            catch (Exception e)
+            {
+                Logger.Instance.LogException(e, "Function1.GetConfiguration()", "sentinel");
+            }
+
+            Logger.Instance.LogInformation("Function1.GetConfiguration()", "IConfiguration.AsEnumerable() start");
+            foreach (var kv in _configuration?.AsEnumerable() ?? [])
+            {
+                Logger.Instance.LogInformation("Function1.GetConfiguration()", "{kv.Key} = {kv.Value}");
+            }
+            Logger.Instance.LogInformation("Function1.GetConfiguration()", "IConfiguration.AsEnumerable() end");
+
+            return new OkObjectResult(data);
+        }
+        catch (Exception e)
+        {
+            Logger.Instance.LogException(e, "Function1.GetConfiguration()", string.Empty);
+            return new InternalServerErrorResult(); ;
         }
     }
 
@@ -56,7 +188,7 @@ public class Functions
             var secret = req.Query["secret"];
             Logger.Instance.LogInformation($"Functions.GetSecret(connection: {connection}, key: {secret}).", string.Empty);
 
-            var uri = new Uri(connection);
+            var uri = new Uri(connection.First() ?? throw new Exception("connection"));
             var keyVaultClient = new SecretClient(uri, new DefaultAzureCredential());
             var value = keyVaultClient.GetSecret(secret).Value.Value;
             Logger.Instance.LogInformation($"secret: \"{value}\"", string.Empty);
@@ -78,24 +210,25 @@ public class Functions
         {
             Logger.Instance.LogInformation($"Functions.ImportView1().", string.Empty);
 
-            using (var db = this._dbContextFactory.CreateDbContext())
+            using (var db = _dbContextFactory?.CreateDbContext() ?? throw new Exception("!_dbContextFactory"))
             {
                 var view = "View2";
                 var sql = $"drop TABLE [dbo].[{view}];";
                 try
                 {
                     db.Database.ExecuteSql(FormattableStringFactory.Create(sql));
-                } 
-                catch(Exception) { }
+                }
+                catch (Exception) { }
 
-                System.IO.FileInfo fi = new($"{view}.txt");
-                System.IO.StreamReader sr = fi.OpenText();
+                FileInfo fi = new($"{view}.txt");
+                StreamReader sr = fi.OpenText();
                 string? header = sr.ReadLine();
                 if (!string.IsNullOrWhiteSpace(header))
                 {
                     sql = $"CREATE TABLE[dbo].[{view}] (";
                     var fields = header.Split(" ", StringSplitOptions.TrimEntries);
-                    foreach(var field in fields) {
+                    foreach (var field in fields)
+                    {
                         if (!string.IsNullOrWhiteSpace(field))
                         {
                             sql += $"[{field}] NVARCHAR(50) NOT NULL,";
@@ -109,9 +242,9 @@ public class Functions
                     sr.ReadLine();
 
                     string? line = string.Empty;
-                    while((line = sr.ReadLine()) != null)
+                    while ((line = sr.ReadLine()) != null)
                     {
-                        line= line.Trim();
+                        line = line.Trim();
                         if (string.IsNullOrEmpty(line))
                         {
                             break;
@@ -138,7 +271,7 @@ public class Functions
                         sql = sql[..^1];
                         sql += ")";
                         Logger.Instance.LogInformation($"Functions.ImportView1().", $"sql: {sql}");
-                        db.Database.ExecuteSql(FormattableStringFactory.Create(sql));
+                        // db.Database.ExecuteSql(FormattableStringFactory.Create(sql));
                     }
                     sr.Close();
                 }
@@ -151,7 +284,7 @@ public class Functions
             return new InternalServerErrorResult();
         }
     }
-    
+
     [Function("InstallCertificateMy")]
     [OpenApiOperation(operationId: "InstallCertificateMy", Description = "InstallCertificateMy")]
     [OpenApiResponseWithBody(statusCode: HttpStatusCode.OK, contentType: "application/json", bodyType: typeof(string), Description = "Description.Response", Example = typeof(string))]
@@ -190,7 +323,7 @@ public class Functions
             store.Add(new X509Certificate2(x509));
             store.Close();
             Logger.Instance.LogInformation($"Certificate installed.", string.Empty);
-            return new OkObjectResult($"Certificate installed."); 
+            return new OkObjectResult($"Certificate installed.");
         }
         catch (Exception e)
         {
@@ -199,88 +332,51 @@ public class Functions
         }
     }
 
-    [Function("Test1")]
-    [OpenApiOperation(operationId: "Test1", Description = "Test1")]
+    [Function("Log")]
+    [OpenApiOperation(operationId: "Log", Description = "Log")]
     [OpenApiResponseWithBody(statusCode: HttpStatusCode.OK, contentType: "application/json", bodyType: typeof(string), Description = "Description.Response", Example = typeof(string))]
-    public IActionResult Test1([HttpTrigger(AuthorizationLevel.Anonymous, "get")] HttpRequest req)
+    public IActionResult Log([HttpTrigger(AuthorizationLevel.Anonymous, "get")] HttpRequest req)
     {
         try
         {
-            Logger.Instance.LogInformation($"Functions.Test1().", string.Empty);
+            Logger.Instance.LogInformation($"Functions.Log().", "");
             return new OkObjectResult(Logger.Instance.list);
         }
         catch (Exception e)
         {
+            Logger.Instance.LogException(e, "Function1.Log()", string.Empty);
+            return new InternalServerErrorResult(); ;
+        }
+    }
+
+    [Function("Telemetry")]
+    [OpenApiOperation(operationId: "Telemetry", Description = "Telemetry")]
+    [OpenApiResponseWithBody(statusCode: HttpStatusCode.OK, contentType: "application/json", bodyType: typeof(string), Description = "Description.Response", Example = typeof(string))]
+    public IActionResult Telemetry([HttpTrigger(AuthorizationLevel.Anonymous, "get")] HttpRequest req)
+    {
+        try
+        {
+            _telemetryService?.TrackEvent("AdamEvent",
+                new Dictionary<string, double>()
+                {
+                    { "metric1", 1.0 }
+                },
+                new Dictionary<string, string>()
+                {
+                    { "property1", "value1" }
+                });
+
+            _telemetryService?.TrackTrace("AdamTrace", SeverityLevel.Verbose,
+                new Dictionary<string, string>()
+                {
+                    { "property1", "value1" }
+                });
+
+            return new OkObjectResult($"OK.");
+        }
+        catch (Exception e)
+        {
             Logger.Instance.LogException(e, "Function1.Tets1()", string.Empty);
-            return new InternalServerErrorResult(); ;
-        }
-    }
-
-    [Function("Test2")]
-    [OpenApiOperation(operationId: "Test2", Description = "Test2")]
-    [OpenApiResponseWithBody(statusCode: HttpStatusCode.OK, contentType: "application/json", bodyType: typeof(string), Description = "Description.Response", Example = typeof(string))]
-    public IActionResult Test2([HttpTrigger(AuthorizationLevel.Anonymous, "get")] HttpRequest req)
-    {
-        try
-        {
-            Logger.Instance.LogInformation($"Functions.Test2().", string.Empty);
-
-            var list = this._configuration.AsEnumerable();
-            foreach (var i in list) {
-                Logger.Instance.LogInformation("Function1.Test2()", $"{i.Key} = {i.Value}.");
-            }
-
-            var data = new Dictionary<string, string>();            
-            try
-            {
-                data.Add("secret", this._configuration.GetValue<string>("Sunstealer::Secret") ?? string.Empty);
-            }
-            catch (Exception e)
-            {
-                Logger.Instance.LogException(e, "Function1.Test2()", string.Empty);
-            }
-
-            try
-            {
-                data.Add("nonSecret", this._configuration.GetValue<string>("Sunstealer::NonSecret") ?? string.Empty);
-            }
-            catch (Exception e)
-            {
-                Logger.Instance.LogException(e, "Function1.Test2()", string.Empty);
-            }
-
-            return new OkObjectResult(data);
-        }
-        catch (Exception e)
-        {
-            Logger.Instance.LogException(e, "Function1.Test2()", string.Empty);
-            return new InternalServerErrorResult(); ;
-        }
-    }
-
-    [Function("Test3")]
-    [OpenApiOperation(operationId: "Test3", Description = "Test3")]
-    [OpenApiResponseWithBody(statusCode: HttpStatusCode.OK, contentType: "application/json", bodyType: typeof(string), Description = "Description.Response", Example = typeof(string))]
-    public IActionResult Test3([HttpTrigger(AuthorizationLevel.Anonymous, "get")] HttpRequest req)
-    {
-        try
-        {
-            Logger.Instance.LogInformation($"Functions.Test3().", string.Empty);
-
-            List<Table1> data = new List<Table1>();
-            using (var db = this._dbContextFactory.CreateDbContext())
-            {
-                var now = DateTime.Now;
-                data = db.table1.Where(f => f.UUID > 0).ToList();
-                data.ForEach(f => f.Number1++);
-                db.SaveChanges();
-                Logger.Instance.LogInformation($"Duration: {DateTime.Now - now}", string.Empty);
-            }
-            return new OkObjectResult(data);
-        }
-        catch (Exception e)
-        {
-            Logger.Instance.LogException(e, "Function1.Test3()", string.Empty);
             return new InternalServerErrorResult(); ;
         }
     }

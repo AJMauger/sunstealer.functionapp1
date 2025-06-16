@@ -8,6 +8,7 @@ namespace sunstealer.azure.functions;
 
 public class DocumentFilter : IDocumentFilter
 {
+    // ajm: ---------------------------------------------------------------------------------------
     public void Apply(IHttpRequestDataObject req, OpenApiDocument document)
     {
         var schemas = document.Components.Schemas;
@@ -37,6 +38,7 @@ public class DocumentFilter : IDocumentFilter
     }
 }
 
+// ajm: ---------------------------------------------------------------------------------------
 public class OpenApiConfigurationOptions : DefaultOpenApiConfigurationOptions
 {
     public OpenApiConfigurationOptions()

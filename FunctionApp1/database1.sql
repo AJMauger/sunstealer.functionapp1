@@ -1,143 +1,93 @@
--- Create a new database called 'DatabaseName'
--- Connect to the 'master' database to run this snippet
-USE master
-GO
--- Create the new database if it does not exist already
-IF NOT EXISTS (
-  SELECT name FROM sys.databases WHERE name = N'database1'
-)
-CREATE DATABASE database1
-GO
+/* alter database [database1] 
+set change_tracking = on 
+(change_retention = 2 DAYS, auto_cleanup = ON);*/
+/* 
+alter table [table1] 
+enable change_tracking;
+*/
 
-
-USE database1
--- Create a new table called 'Table1' in schema 'Schema1'
--- Drop the table if it already exists
-IF OBJECT_ID('database1..Table1', 'U') IS NOT NULL
-DROP TABLE database1..Table1
-GO
--- Create the table in the specified schema
-CREATE TABLE database1..Table1
-(
-  UUID INT IDENTITY NOT NULL PRIMARY KEY,
-  -- primary key column
-  Number1 [INT] NOT NULL,
-  Text1 [NVARCHAR](50) NOT NULL,
-  [Date1] [DATE] NULL,
-  -- specify more columns here
-);
-GO
-
--- Insert rows into table 'TableName'
-INSERT INTO database1..Table1
-( -- columns to insert data into
- [Number1], [Text1]
-)
-VALUES
-( -- first row: values for the columns in the list above
- 1, 'One'
-),
-( -- second row: values for the columns in the list above
- 2, 'Two'
-)
--- add more rows here
-GO
-
--- Update rows in table 'TableName'
-UPDATE Table1
-SET
-  [Number1] = 3,
-  [Text1] = 'Three'
-  -- add more columns and values here
-WHERE UUID = 2	/* add search conditions here */
-GO
-
--- Select rows from a Table or View DATABASE1.'TABLE1 schema 'SchemaName'
-SELECT * FROM database1..Table1
--- WHERE 	/* add search conditions here */
-GO
-
--- Create a new view called 'ViewName' in schema 'SchemaName'
--- Drop the view if it already exists
-IF EXISTS (
-SELECT *
-  FROM sys.views
-  JOIN sys.schemas
-  ON sys.views.schema_id = sys.schemas.schema_id
-  -- WHERE sys.schemas.name = N'SchemaName'
-  AND sys.views.name = N'View1'
-)
-DROP VIEW View1
-GO
--- Create the view in the specified schema
-CREATE VIEW View1
-AS
-  -- body of the view
-  SELECT [UUID],
-    [Number1],
-    [Text1],
-    [Date1]
-  FROM database1..table1
-GO
-
--- Select rows from a Table or View DATABASE1.'TABLE1 schema 'SchemaName'
-SELECT * FROM database1..View1
--- WHERE 	/* add search conditions here */
-GO
-
-delete from database1..Table1;
+use master
 go
 
-INSERT INTO database1..Table1 ([Number1], [Text1], [Date1]) VALUES
-(1, 'One', null),
-(2, 'Two', '1/1/1'),
-(3, 'Three', GETDATE()),
-(4, 'Four', GETDATE()),
-(5, 'Five', GETDATE()),
-(6, 'Six', GETDATE()),
-(7, 'Seven', GETDATE()),
-(8, 'Eight', GETDATE()),
-(9, 'Nine', GETDATE()),
-(10, 'Ten', GETDATE())
+IF not exists (select name from sys.databases where name = N'database1')
+  create database database1
 go
 
-CREATE PROCEDURE [dbo].[sp_curses]
-AS
 
-SET NOCOUNT ON;
+use database1
+if object_id('database1..table1', 'U') is not null
+  drop table database1..table1
+go
 
-DECLARE @UUID as int;
-DECLARE @Number1 as int;
-DECLARE @Text1 as varchar(max);
-DECLARE @Date1 as datetime;
+create table [dbo].[table1](
+	[UUID] [int] identity(1,1) not null,
+	[Number1] [int] not null,
+	[Text1] [nvarchar](50) not null,
+	[Encrypted1] [nvarchar](50) collate Latin1_General_BIN2 encrypted with (column_encryption_key = [CEK], encryption_type = Deterministic, algorithm = 'AEAD_AES_256_CBC_HMAC_SHA_256') not null,
+	[Date1] [date] null)
+go
 
-CREATE TABLE #Temp1 (
-    [UUID]    INT           NOT NULL,
-    [Number1] INT           NOT NULL,
-    [Text1]   NVARCHAR (50) NOT NULL,
-    [Text2]   NVARCHAR (50) NOT NULL,
-    [Date1]   DATE          NULL,
+delete from database1..table1;
+go
+
+declare @Encrypted1 as nvarchar(50) = N'Encrypted';
+insert into database1..table1 ([Number1], [Text1], [Encrypted1], [Date1]) values (1, N'ClearText', @Encrypted1, '01/01/2025')
+go
+
+update table1 set [Number1] = 1, [Text1] = N'ClearText' where UUID = 1
+go
+
+select * from database1..table1
+go
+
+if exists (select * from sys.views join sys.schemas on sys.views.schema_i = sys.schemas.schema_id and sys.views.name = N'View1')
+  drop view View1
+go
+create view View1 as select [UUID], [Number1], [Text1], [Encrypted1], [Date1] from database1..table1
+go
+
+select * from database1..View1
+go
+
+/* ajm: disbale delete trigger 
+create trigger trg_FilterDelete
+on dbo.table1
+after insert, update
+AS*/
+
+create procedure [dbo].[sp_curses] as
+
+set nocount on;
+
+declare @UUID as int;
+declare @Number1 as int;
+declare @Text1 as varchar(max);
+declare @Date1 as datetime;
+
+create table #Temp1 (
+    [UUID]     int          not null,
+    [Number1]  int          not null,
+    [Text1]    nvarchar(50) not null,
+    [Date1]    date         null,
 );
 
-DECLARE @message as varchar(max);
+declare @message as varchar(max);
 
-DECLARE curses CURSOR FOR SELECT UUID, Number1, Text1, Date1 FROM [Table1]; 
-OPEN curses;
-FETCH NEXT FROM curses INTO @UUID, @Number1, @Text1, @Date1;
+declare curses cursor for select UUID, Number1, Text1, Date1 from [table1]; 
+open curses;
+fetch next from curses into @UUID, @Number1, @Text1, @Date1;
 
-WHILE @@FETCH_STATUS = 0
-BEGIN
-    SELECT @message = '-----: ' + @Text1
-    PRINT @message
-
-	INSERT INTO #Temp1 (UUID, Number1, Text1, Text2, Date1) VALUES (@UUID, @Number1, @Text1, (select Text1 from Table1 where UUID = @UUID), @Date1);
-
-    FETCH NEXT FROM curses INTO @UUID, @Number1, @Text1, @Date1;
+while @@FETCH_STATUS = 0
+begin
+    select @message = '-----: ' + @Text1
+    print @message
+	  insert into #Temp1 (UUID, Number1, Text1, Date1) values (@UUID, @Number1, @Text1, (select Text1 from table1 where UUID = @UUID), @Date1);
+    fetch next from curses into @UUID, @Number1, @Text1, @Date1;
 END
 
-SELECT * FROM #Temp1;
+select * from #Temp1;
 
-CLOSE curses;
-DEALLOCATE curses;
+close curses;
+deallocate curses;
 
-DROP TABLE #Temp1;
+drop table #Temp1;

@@ -1,5 +1,4 @@
-﻿
-namespace FunctionApp1;
+﻿namespace Sunstealer.FunctionApp1;
 
 public class Logger
 {
