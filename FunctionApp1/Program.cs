@@ -14,7 +14,7 @@ var appConfig = builder.Configuration.GetConnectionString("AppConfig");
 var myValue = builder.Configuration.GetValue<string>("MyKey");
 
 // ajm: APPLICATIONINSIGHTS_CONNECTION_STRING
-string connectionString = "InstrumentationKey=a3c4c339-4095-4065-8d59-568af7152f88;IngestionEndpoint=https://westus2-2.in.applicationinsights.azure.com/;LiveEndpoint=https://westus2.livediagnostics.monitor.azure.com/;ApplicationId=bfc75d5a-d535-4d4b-9d13-2130dd92ddc1";
+string connectionString = "";
 
 var properties = new Dictionary<string, string>()
     {
