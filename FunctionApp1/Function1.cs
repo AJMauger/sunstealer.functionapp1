@@ -17,6 +17,30 @@ using System.Runtime.CompilerServices;
 using System.Security.Cryptography.X509Certificates;
 using System.Web.Http;
 
+/*
+using var context = dbContextFactory.CreateDbContext();
+var dbConnection = context.Database.GetDbConnection();
+
+if (dbConnection is SqlConnection sqlConnection)
+{
+
+// CREATE COLUMN MASTER KEY [MyCMK]
+// WITH (
+//    KEY_STORE_PROVIDER_NAME = 'AZURE_KEY_VAULT',
+//    KEY_PATH = 'https://key-vault-name.vault.azure.net/keys/key-name/'
+//);
+
+    var credential = new DefaultAzureCredential();
+    var akvProvider = new SqlColumnEncryptionAzureKeyVaultProvider(credential);
+
+    sqlConnection.RegisterColumnEncryptionKeyStoreProviders(
+        new Dictionary<string, SqlColumnEncryptionKeyStoreProvider>
+        {
+            { SqlColumnEncryptionAzureKeyVaultProvider.ProviderName, akvProvider }
+        });
+}
+*/
+
 namespace Sunstealer.FunctionApp1;
 
 public class Functions
