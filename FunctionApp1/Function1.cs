@@ -17,30 +17,6 @@ using System.Runtime.CompilerServices;
 using System.Security.Cryptography.X509Certificates;
 using System.Web.Http;
 
-/*
-using var context = dbContextFactory.CreateDbContext();
-var dbConnection = context.Database.GetDbConnection();
-
-if (dbConnection is SqlConnection sqlConnection)
-{
-
-// CREATE COLUMN MASTER KEY [MyCMK]
-// WITH (
-//    KEY_STORE_PROVIDER_NAME = 'AZURE_KEY_VAULT',
-//    KEY_PATH = 'https://key-vault-name.vault.azure.net/keys/key-name/'
-//);
-
-    var credential = new DefaultAzureCredential();
-    var akvProvider = new SqlColumnEncryptionAzureKeyVaultProvider(credential);
-
-    sqlConnection.RegisterColumnEncryptionKeyStoreProviders(
-        new Dictionary<string, SqlColumnEncryptionKeyStoreProvider>
-        {
-            { SqlColumnEncryptionAzureKeyVaultProvider.ProviderName, akvProvider }
-        });
-}
-*/
-
 namespace Sunstealer.FunctionApp1;
 
 public class Functions
@@ -51,29 +27,48 @@ public class Functions
     private readonly ILoggerService? _logger;
     private readonly ITelemetryService? _telemetryService;
 
-    public Functions(IApplicationService application, IConfiguration configuration, IDbContextFactory<ApplicationDbContext> dbContextFactory, 
-        ILoggerFactory loggerFactory, ILoggerService loggerService, ITelemetryService telemetryService)
+    [Function("AlwaysEncrypted")]
+    [OpenApiOperation(operationId: "AlwaysEncrypted", Description = "AlwaysEncrypted")]
+    [OpenApiResponseWithBody(statusCode: HttpStatusCode.OK, contentType: "application/json", bodyType: typeof(string), Description = "Description.Response", Example = typeof(string))]
+    public IActionResult AlwaysEncrypted([HttpTrigger(AuthorizationLevel.Anonymous, "get")] HttpRequest req)
     {
         try
         {
-            _application = application ?? throw new Exception("application");
-            _configuration = configuration ?? throw new Exception("configuration");
-            _dbContextFactory = dbContextFactory ?? throw new Exception("dbContextFactory");
-            // _logger = loggerFactory?.CreateLogger<ILoggerService>();
-            _logger = loggerService;
-            _telemetryService = telemetryService;
+            Logger.Instance.LogInformation($"Functions.AlwaysEncrypted().", string.Empty);
 
-            Logger.Instance.LogInformation($"Functions.Functions() _configuration: {_configuration}.", string.Empty);
+            var dbContext = _dbContextFactory?.CreateDbContext();
+            var dbConnection = dbContext?.Database.GetDbConnection();
 
-            _logger.LogDebug("ILogger Debug Test.");
-            _logger.LogInformation("ILogger Information Test.");
-            _logger.LogWarning("ILogger Warning Test.");
-            _logger.LogError("ILogger Error Test.");
-            _logger.LogError(new Exception("AdamException"), "ILogger Exception Test.");
+            if (dbConnection is SqlConnection sqlConnection)
+            {
+                var credential = new DefaultAzureCredential();
+                var akvProvider = new SqlColumnEncryptionAzureKeyVaultProvider(credential);
+
+                SqlConnection.RegisterColumnEncryptionKeyStoreProviders(
+                    new Dictionary<string, SqlColumnEncryptionKeyStoreProvider>()
+                    {
+                        { SqlColumnEncryptionAzureKeyVaultProvider.ProviderName, akvProvider }
+                    });
+            }
+
+            List<Table1> data = new List<Table1>();
+            var now = DateTime.Now;
+            if (dbContext != null)
+            {
+                string encrypted01 = "Encrypted";
+                data = dbContext.table1.Where(f => f.Encrypted1 == encrypted01).ToList();
+                data.ForEach(f =>
+                {
+                    Console.WriteLine($"UUID: {f.UUID}, Encrypted1: {f.Encrypted1}, Date1: {f.Date1}, Number1: {f.Number1}, Text1: {f.Text1}"); 
+                });
+            }
+            Logger.Instance.LogInformation($"Duration: {DateTime.Now - now}", string.Empty);
+            return new OkObjectResult(data);
         }
         catch (Exception e)
         {
-            _logger?.LogError(e, $"Function.Function().");
+            Logger.Instance.LogException(e, "Function1.EntityFrameworkLinq()", string.Empty);
+            return new InternalServerErrorResult(); ;
         }
     }
 
