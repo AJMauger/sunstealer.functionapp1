@@ -1,0 +1,59 @@
+﻿[2025-06-28T15:45:33.350Z] Exception executing query. Message=Operand type clash: nvarchar(max) is incompatible with nvarchar(max) encrypted with (encryption_type = 'DETERMINISTIC', encryption_algorithm_name = 'AEAD_AES_256_CBC_HMAC_SHA_256', column_encryption_key_name = 'CEK', column_encryption_key_database_name = 'database1')
+[2025-06-28T15:45:33.352Z] Statement(s) could not be prepared.
+Query=WITH cte AS ( SELECT * FROM OPENJSON(REPLACE(@rowData, N'/', N'\/')) WITH ([UUID] int,[Encrypted1] nvarchar(max),[Date1] date,[Number1] int,[Text1] nvarchar(max)) )
+                    MERGE INTO [dbo].[table1] WITH (HOLDLOCK)
+                        AS ExistingData
+                    USING cte
+                        AS NewData
+                    ON
+                        ExistingData.[UUID] = NewData.[UUID]
+                    WHEN MATCHED THEN
+                        UPDATE SET  ExistingData.[Encrypted1] = NewData.[Encrypted1], ExistingData.[Date1] = NewData.[Date1], ExistingData.[Number1] = NewData.[Number1], ExistingData.[Text1] = NewData.[Text1]
+                    WHEN NOT MATCHED THEN
+                        INSERT ([Encrypted1],[Date1],[Number1],[Text1]) VALUES ([Encrypted1],[Date1],[Number1],[Text1]);
+[2025-06-28T15:45:33.371Z] Executed 'Functions.SqlOutput' (Failed, Id=4336b443-0672-4b6d-8c64-21bc2d30d896, Duration=848ms)
+[2025-06-28T15:45:33.371Z] System.Private.CoreLib: Exception while executing function: Functions.SqlOutput. Microsoft.Azure.WebJobs.Host: Error while handling parameter _binder after function returned:. Microsoft.Azure.WebJobs.Extensions.Sql: Unexpected error upserting rows. Core Microsoft SqlClient Data Provider: Operand type clash: nvarchar(max) is incompatible with nvarchar(max) encrypted with (encryption_type = 'DETERMINISTIC', encryption_algorithm_name = 'AEAD_AES_256_CBC_HMAC_SHA_256', column_encryption_key_name = 'CEK', column_encryption_key_database_name = 'database1')
+[2025-06-28T15:45:33.372Z] Statement(s) could not be prepared.
+
+
+
+
+
+
+
+
+Here’s what’s happening under the hood:
+
+### 💥 Why It Fails
+- The `[SqlOutput]` binding tries to **Upsert** data into SQL Server.
+- `Encrypted1` maps to a column that uses **deterministic encryption** with Always Encrypted.
+- Your C# app provides `"EncryptedX"` as plaintext, which **fails** when SQL tries to compare it against the encrypted column during `MERGE` or `UPDATE`.
+
+SQL Server goes: _"I can’t compare encrypted and unencrypted values."_ Hence the *"operand type clash"*.
+
+---
+
+### ✅ How to Resolve It
+
+#### ✔️ Option 1: Let `SqlClient` Do the Encryption Automatically
+You can’t do that directly inside the `[SqlOutput]` binding because it doesn't support **client-side encryption transparently** like `SqlClient` does. Instead, use manual insert logic with `SqlConnection` where encryption is supported.
+
+#### ✔️ Option 2: Avoid Encrypted Columns in Merge Keys
+If you're using `[SqlOutput]` for UPSERT operations, try this:
+- Ensure `Encrypted1` is **not part of the primary key** or any indexed constraint being used to determine match.
+- Better yet, **exclude `Encrypted1` from the comparison logic** in the SQL bindings by adjusting your schema.
+
+#### ✔️ Option 3: Switch to Manual Insert with `SqlClient`
+This gives you more control. Here's the simplified flow:
+```csharp
+var connectionString = "your_connection_string;Column Encryption Setting=Enabled";
+using var conn = new SqlConnection(connectionString);
+conn.Open();
+using var cmd = new SqlCommand("INSERT INTO [dbo].[table1] (Encrypted1, Date1, ...) VALUES (@Encrypted1, @Date1, ...)", conn);
+
+cmd.Parameters.AddWithValue("@Encrypted1", "EncryptedX"); // SqlClient handles encryption
+...
+cmd.ExecuteNonQuery();
+```
+
+---
