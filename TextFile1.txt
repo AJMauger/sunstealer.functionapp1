@@ -68,7 +68,7 @@ cmd.ExecuteNonQuery();
 
 
 
-But this entity framework code does an comparision on the encrypted filed fine, so why does SQLOutput fail specifically? 
+But this entity framework code does a comparision on the encrypted filed fine, so why does SQLOutput fail specifically? 
 
 var dbContext = _dbContextFactory?.CreateDbContext(); 
 List<Table1> data = new List<Table1>(); 
