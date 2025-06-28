@@ -15,7 +15,19 @@ Query=WITH cte AS ( SELECT * FROM OPENJSON(REPLACE(@rowData, N'/', N'\/')) WITH 
 [2025-06-28T15:45:33.371Z] System.Private.CoreLib: Exception while executing function: Functions.SqlOutput. Microsoft.Azure.WebJobs.Host: Error while handling parameter _binder after function returned:. Microsoft.Azure.WebJobs.Extensions.Sql: Unexpected error upserting rows. Core Microsoft SqlClient Data Provider: Operand type clash: nvarchar(max) is incompatible with nvarchar(max) encrypted with (encryption_type = 'DETERMINISTIC', encryption_algorithm_name = 'AEAD_AES_256_CBC_HMAC_SHA_256', column_encryption_key_name = 'CEK', column_encryption_key_database_name = 'database1')
 [2025-06-28T15:45:33.372Z] Statement(s) could not be prepared.
 
-This is the code that is causing the error: [Function("SqlOutput")] [SqlOutput("[dbo].[table1]", "DatabaseConnectionString")] public async Task<Table1> SqlOutput( [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = null)] HttpRequestData req) { _logger?.LogInformation($"SqlColumnEncryptionAzureKeyVaultProvider.ProviderName: {SqlColumnEncryptionAzureKeyVaultProvider.ProviderName}."); var encryptedX = "EncryptedX"; var row = await req.ReadFromJsonAsync<Table1>() ?? new Table1 { Encrypted1 = encryptedX, Date1 = DateTime.Now, Number1 = 2, Text1 = "ClearTextX" }; return row; }
+
+
+This is the code that is causing the error: 
+
+[Function("SqlOutput")] [SqlOutput("[dbo].[table1]", "DatabaseConnectionString")] public async Task<Table1> SqlOutput( [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = null)] HttpRequestData req) 
+{
+ _logger?.LogInformation($"SqlColumnEncryptionAzureKeyVaultProvider.ProviderName: {SqlColumnEncryptionAzureKeyVaultProvider.ProviderName}."); 
+ var encryptedX = "EncryptedX"; 
+ var row = await req.ReadFromJsonAsync<Table1>() ?? new Table1 { Encrypted1 = encryptedX, Date1 = DateTime.Now, Number1 = 2, Text1 = "ClearTextX" }; 
+ return row; 
+}
+
+
 
 Here’s what’s happening under the hood:
 
@@ -53,7 +65,25 @@ cmd.ExecuteNonQuery();
 
 ---
 
-But this entity framework code does an comparision on the encrypted filed fine, so why does SQLOutput fail specifically? var dbContext = _dbContextFactory?.CreateDbContext(); List<Table1> data = new List<Table1>(); var now = DateTime.Now; if (dbContext != null) { string encrypted01 = "Encrypted"; data = dbContext.table1.Where(f => f.Encrypted1 == encrypted01).ToList(); data.ForEach(f => { Console.WriteLine($"UUID: {f.UUID}, Encrypted1: {f.Encrypted1}, Date1: {f.Date1}, Number1: {f.Number1}, Text1: {f.Text1}"); }); } Logger.Instance.LogInformation($"Duration: {DateTime.Now - now}", string.Empty);
+
+
+
+But this entity framework code does an comparision on the encrypted filed fine, so why does SQLOutput fail specifically? 
+
+var dbContext = _dbContextFactory?.CreateDbContext(); 
+List<Table1> data = new List<Table1>(); 
+var now = DateTime.Now; if (dbContext != null) 
+{ 
+  string encrypted01 = "Encrypted"; 
+  data = dbContext.table1.Where(f => f.Encrypted1 == encrypted01).ToList(); 
+  data.ForEach(f => { 
+    Console.WriteLine($"UUID: {f.UUID}, Encrypted1: {f.Encrypted1}, Date1: {f.Date1}, Number1: {f.Number1}, Text1: {f.Text1}"); 
+  }); 
+} 
+Logger.Instance.LogInformation($"Duration: {DateTime.Now - now}", string.Empty);
+
+
+
 
 Ah, this is an insightful contrast—and a subtle yet fundamental distinction between **Entity Framework with `SqlClient`** and the **Azure Functions `[SqlOutput]` binding**.
 
