@@ -12,6 +12,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Microsoft.OpenApi.Models;
+using Newtonsoft.Json;
 using System.Net;
 using System.Net.Http;
 using System.Runtime.CompilerServices;
@@ -77,6 +78,18 @@ public class Functions
         return row;
     }
 
+    [Function("SqlTrigger")]
+    public void SqlTrigger(
+    [SqlTrigger("[dbo].[table1]", "DatabaseConnectionString")] IReadOnlyList<SqlChange<Table1>> changes, FunctionContext context)
+    {
+        Logger.Instance.LogInformation($"Functions.SqlTrigger().", string.Empty);
+
+        foreach (var change in changes)
+        {
+            Logger.Instance.LogInformation($"Change Operation: {change.Operation}, UUID: {change.Item.UUID}, Encrypted1: {change.Item.Encrypted1}, Date1: {change.Item.Date1}, Number1: {change.Item.Number1}, Text1: {change.Item.Text1}", string.Empty);
+            _logger?.LogInformation($"Change Operation: {change.Operation}, UUID: {change.Item.UUID}, Encrypted1: {change.Item.Encrypted1}, Date1: {change.Item.Date1}, Number1: {change.Item.Number1}, Text1: {change.Item.Text1}");
+        }
+    }
 
     [Function("AlwaysEncrypted")]
     [OpenApiOperation(operationId: "AlwaysEncrypted", Description = "AlwaysEncrypted")]
@@ -109,8 +122,6 @@ public class Functions
             {
                 _logger?.LogError($"SqlOutput: {response.StatusCode}");
             }*/
-
-
 
             var dbContext = _dbContextFactory?.CreateDbContext();
 
