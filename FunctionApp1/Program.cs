@@ -81,26 +81,33 @@ var host = new HostBuilder()
         try
         {
             Logger.Instance.LogInformation("ConfigureAppConfiguration()", "ConfigureAppConfiguration()");
+            if (ts == null)
+            {
+                var appInsightsConnectionString = builder.Configuration.GetConnectionString("AppInsightsConnectionString");
+                ts = new TelemetryService(appInsightsConnectionString, properties);
+            }
+
+            // ajm: CUSTOMCONNSTR_ not ConnectionStrings: O_o
+            var connectionString = Environment.GetEnvironmentVariable("CUSTOMCONNSTR_AppConfig", EnvironmentVariableTarget.Process);
+            Logger.Instance.LogInformation("ConfigureAppConfiguration().AddAzureAppConfiguration()", $"AppConfig ConnectionString: {connectionString} connecting ...");
+            ts?.TrackTrace($"ConfigureAppConfiguration().AddAzureAppConfiguration() AppConfig ConnectionString: {connectionString} connecting ...", SeverityLevel.Verbose);
 
             if (ConfigurationModel.env != Environments.Development)
             {
                 options.AddAzureAppConfiguration(options =>
                 {
-                    // ajm: CUSTOMCONNSTR_ not ConnectionStrings: O_o
-                    var connectionString = Environment.GetEnvironmentVariable("CUSTOMCONNSTR_AppConfig", EnvironmentVariableTarget.Process);
-                    Logger.Instance.LogInformation("ConfigureAppConfiguration().AddAzureAppConfiguration()", $"AppConfig ConnectionString: {connectionString} connecting ...");
-                    ts?.TrackTrace($"ConfigureAppConfiguration().AddAzureAppConfiguration() AppConfig ConnectionString: {connectionString} connecting ...", SeverityLevel.Verbose);
                     if (connectionString != null)
                     {
                         options.Connect(new Uri(connectionString), new ManagedIdentityCredential())
-                        .ConfigureKeyVault(kv =>
-                        {
-                            kv.SetCredential(new DefaultAzureCredential());
-                        })
-                        .Select("Sunstealer::*")
-                        .ConfigureRefresh(refreshOptions => refreshOptions.Register("Sunstealer::sentinel", refreshAll: true));
+                            .ConfigureKeyVault(kv =>
+                            {
+                                kv.SetCredential(new DefaultAzureCredential());
+                            })
+                            .Select("Sunstealer::*")
+                            .ConfigureRefresh(refreshOptions => refreshOptions.Register("Sunstealer::sentinel", refreshAll: true));
 
                         Logger.Instance.LogInformation("ConfigureAppConfiguration().AddAzureAppConfiguration()", $"AppConfig ConnectionString: {connectionString} connected.");
+                        ts?.TrackTrace($"AppConfig ConnectionString: {connectionString} connected.", SeverityLevel.Verbose);
                     }
                 });
             }
