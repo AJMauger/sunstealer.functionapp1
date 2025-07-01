@@ -72,7 +72,9 @@ var host = new HostBuilder()
     })
     .ConfigureLogging(options =>
     {
-        options.AddApplicationInsights();
+        options.AddApplicationInsights()
+            .AddConsole()
+            .AddFilter("Microsoft.EntityFrameworkCore.Database.Command", LogLevel.None);
     })
    .ConfigureAppConfiguration(options =>
     {
