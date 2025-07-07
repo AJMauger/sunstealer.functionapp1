@@ -27,6 +27,32 @@ public class TelemetryService: ITelemetryService
     }
 
     // ajm: ---------------------------------------------------------------------------------------
+    public void TrackDepemdency(string dependencyName, Dictionary<string, double>? metrics = null, Dictionary<string, string>? properties = null, [CallerFilePath] string filePath = "", [CallerLineNumber] int lineNumber = 0)
+    {
+        var dt = new DependencyTelemetry()
+        {
+            Duration = TimeSpan.Zero,
+            Name = dependencyName,
+            Timestamp = DateTimeOffset.UtcNow
+        };
+        foreach (var m in metrics ?? [])
+        {
+            dt.Metrics.Add(m.Key, m.Value);
+        }
+        var stackFrame = StackFrame.GetStackFrame(filePath, lineNumber);
+        foreach (var sf in stackFrame ?? [])
+        {
+            dt.Properties.Add(sf.Key, sf.Value);
+        }
+        foreach (var p in properties ?? [])
+        {
+            dt.Properties.Add(p.Key, p.Value);
+        }
+        _client.TrackDependency(dt);
+        _client.Flush();
+    }
+
+    // ajm: ---------------------------------------------------------------------------------------
     public void TrackEvent(string eventName, Dictionary<string, double>? metrics = null, Dictionary<string, string>? properties = null, [CallerFilePath] string filePath = "", [CallerLineNumber] int lineNumber = 0)
     {
         var et = new EventTelemetry()
@@ -67,6 +93,33 @@ public class TelemetryService: ITelemetryService
             et.Properties.Add(p.Key, p.Value);
         }
         _client.TrackException(et);
+        _client.Flush();
+    }
+
+    // ajm: ---------------------------------------------------------------------------------------
+    public void TrackRequest(string requestName, Uri uri, Dictionary<string, double>? metrics = null, Dictionary<string, string>? properties = null, [CallerFilePath] string filePath = "", [CallerLineNumber] int lineNumber = 0)
+    {
+        var rt = new RequestTelemetry()
+        {
+            Duration = TimeSpan.Zero,
+            Name = requestName,
+            Timestamp = DateTimeOffset.UtcNow,
+            Url = uri
+        };
+        foreach (var m in metrics ?? [])
+        {
+            rt.Metrics.Add(m.Key, m.Value);
+        }
+        var stackFrame = StackFrame.GetStackFrame(filePath, lineNumber);
+        foreach (var sf in stackFrame ?? [])
+        {
+            rt.Properties.Add(sf.Key, sf.Value);
+        }
+        foreach (var p in properties ?? [])
+        {
+            rt.Properties.Add(p.Key, p.Value);
+        }
+        _client.TrackRequest(rt);
         _client.Flush();
     }
 
