@@ -2,7 +2,9 @@ using Azure.Identity;
 using Azure.Security.KeyVault.Secrets;
 using Microsoft.ApplicationInsights.DataContracts;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Azure.Cosmos;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Azure.Functions.Worker.Extensions.Sql;
 using Microsoft.Azure.Functions.Worker.Http;
@@ -32,7 +34,6 @@ public class Functions
     private readonly ILoggerService? _logger;
     private readonly ITelemetryService? _telemetryService;
 
-
     public Functions(IApplicationService application, IConfiguration configuration, IDbContextFactory<ApplicationDbContext> dbContextFactory, 
         ILoggerFactory loggerFactory, ILoggerService loggerService, ITelemetryService telemetryService)
     {
@@ -59,10 +60,37 @@ public class Functions
         }
     }
 
+    [Function("CosmosDdSelect")]
+    public async Task<IActionResult> Run([HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = null)] HttpRequest req)
+    {
+        try
+        {
+            var connectionString = this._configuration?.GetConnectionString("CosmosDbConnectionString");
+            var cosmosClient = new CosmosClient(connectionString);
+            var container = cosmosClient.GetContainer("database1", "container1");
+            var query = container.GetItemQueryIterator<Dictionary<string, string>>(new QueryDefinition("SELECT * FROM c"));
+            var results = new List<Dictionary<string, string>>();
+
+            while (query.HasMoreResults)
+            {
+                foreach (var item in await query.ReadNextAsync())
+                {
+                    results.Add(item);
+                }
+            }
+
+            return new OkObjectResult(results);
+        }
+        catch (Exception e)
+        {
+            _logger?.LogError(e, $"Function.CosmosDBSelect().");
+            return new InternalServerErrorResult();
+        }
+    }
+
     [Function("SqlOutput")]
-    [SqlOutput("[dbo].[table1]", "DatabaseConnectionString")]
-    public async Task<Table1> SqlOutput(
-    [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = null)] HttpRequestData req)
+    [SqlOutput("[dbo].[table1]", "AzureDbConnectionString")]
+    public async Task<Table1> SqlOutput([HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = null)] HttpRequestData req)
     {
         _logger?.LogInformation($"SqlColumnEncryptionAzureKeyVaultProvider.ProviderName: {SqlColumnEncryptionAzureKeyVaultProvider.ProviderName}.");
 
@@ -79,8 +107,7 @@ public class Functions
     }
 
     [Function("SqlTrigger")]
-    public void SqlTrigger(
-    [SqlTrigger("[dbo].[table1]", "DatabaseConnectionString")] IReadOnlyList<SqlChange<Table1>> changes, FunctionContext context)
+    public void SqlTrigger([SqlTrigger("[dbo].[table1]", "AzureDbConnectionString")] IReadOnlyList<SqlChange<Table1>> changes, FunctionContext context)
     {
         Logger.Instance.LogInformation($"Functions.SqlTrigger().", string.Empty);
 
@@ -101,7 +128,7 @@ public class Functions
             Logger.Instance.LogInformation($"Functions.AlwaysEncrypted().", string.Empty);
 
             // ajm: test SQLOutput
-            /* ajm: var encryptedX = "EncryptedX";
+            var encryptedX = "EncryptedX";
             var requestData = new Table1
             {
                 Encrypted1 = encryptedX,
@@ -110,7 +137,7 @@ public class Functions
                 Text1 = "ClearTextX"
             };
 
-            var json = JsonSerializer.Serialize(requestData);
+            var json = System.Text.Json.JsonSerializer.Serialize(requestData);
             var content = new StringContent(json, Encoding.UTF8, "application/json");
             var response = await httpClient.PostAsync("http://localhost:7299/api/SqlOutput", content);
 
@@ -121,11 +148,11 @@ public class Functions
             else
             {
                 _logger?.LogError($"SqlOutput: {response.StatusCode}");
-            }*/
+            }
 
             var dbContext = _dbContextFactory?.CreateDbContext();
 
-            List<Table1> data = new List<Table1>();
+            var data = new List<Table1>();
             var now = DateTime.Now;
             if (dbContext != null)
             {
@@ -142,7 +169,7 @@ public class Functions
         catch (Exception e)
         {
             Logger.Instance.LogException(e, "Function1.EntityFrameworkLinq()", string.Empty);
-            return new InternalServerErrorResult(); ;
+            return new InternalServerErrorResult();
         }
     }
 
