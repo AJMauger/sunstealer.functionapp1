@@ -1,7 +1,7 @@
 /* alter database [database1] 
 set change_tracking = on 
-(change_retention = 2 DAYS, auto_cleanup = ON);*/
-/* 
+(change_retention = 2 days, auto_cleanup = on);
+
 alter table [table1] 
 enable change_tracking;
 */

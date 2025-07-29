@@ -41,8 +41,8 @@ var host = new HostBuilder()
 
         services.AddDbContextFactory<ApplicationDbContext>(options =>
         {
-            var databaseConnectionString = builder.Configuration.GetConnectionString("DatabaseConnectionString");
-            options.UseSqlServer(databaseConnectionString);
+            var AzureDbConnectionString = builder.Configuration.GetConnectionString("AzureDbConnectionString");
+            options.UseSqlServer(AzureDbConnectionString);
         })
         .AddApplicationInsightsTelemetryWorkerService(options => {
                 var appInsightsConnectionString = builder.Configuration.GetConnectionString("AppInsightsConnectionString");
